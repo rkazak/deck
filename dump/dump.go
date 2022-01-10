@@ -296,7 +296,7 @@ func GetAllServices(ctx context.Context, client *kong.Client,
 func GetAllRoutes(ctx context.Context, client *kong.Client,
 	tags []string) ([]*kong.Route, error) {
 	var routes []*kong.Route
-	opt := newOpt(tags)
+	opt := &kong.ListOpt{}
 
 	for {
 		s, nextopt, err := client.Routes.List(ctx, opt)
@@ -306,7 +306,24 @@ func GetAllRoutes(ctx context.Context, client *kong.Client,
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		routes = append(routes, s...)
+		// Select routes based on tags
+		if len(tags) == 0 {
+			routes = append(routes, s...)
+		} else {
+			for _, route := range s {
+				entityTags := route.Tags
+				if route.Service != nil {
+					service, err := client.Services.Get(ctx, route.Service.ID)
+					if err != nil {
+						return nil, err
+					}
+					entityTags = append(entityTags, service.Tags...)
+				}
+				if isSelected(tags, entityTags) {
+					routes = append(routes, route)
+				}
+			}
+		}
 		if nextopt == nil {
 			break
 		}
@@ -315,11 +332,22 @@ func GetAllRoutes(ctx context.Context, client *kong.Client,
 	return routes, nil
 }
 
+func isSelected(selectorTags []string, entityTags []*string) bool {
+	for _, tag := range selectorTags {
+		for _, etag := range entityTags {
+			if tag == *etag {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // GetAllPlugins queries Kong for all the plugins using client.
 func GetAllPlugins(ctx context.Context,
 	client *kong.Client, tags []string) ([]*kong.Plugin, error) {
 	var plugins []*kong.Plugin
-	opt := newOpt(tags)
+	opt := &kong.ListOpt{}
 
 	for {
 		s, nextopt, err := client.Plugins.List(ctx, opt)
@@ -329,7 +357,36 @@ func GetAllPlugins(ctx context.Context,
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		plugins = append(plugins, s...)
+		// Select routes based on tags
+		if len(tags) == 0 {
+			plugins = append(plugins, s...)
+		} else {
+			for _, plugin := range s {
+				entityTags := plugin.Tags
+				if plugin.Service != nil {
+					service, err := client.Services.Get(ctx, plugin.Service.ID)
+					if err != nil {
+						return nil, err
+					}
+					entityTags = append(entityTags, service.Tags...)
+				} else if plugin.Consumer != nil {
+					consumer, err := client.Consumers.Get(ctx, plugin.Consumer.ID)
+					if err != nil {
+						return nil, err
+					}
+					entityTags = append(entityTags, consumer.Tags...)
+				} else if plugin.Route != nil {
+					route, err := client.Routes.Get(ctx, plugin.Route.ID)
+					if err != nil {
+						return nil, err
+					}
+					entityTags = append(entityTags, route.Tags...)
+				}
+				if isSelected(tags, entityTags) {
+					plugins = append(plugins, plugin)
+				}
+			}
+		}
 		if nextopt == nil {
 			break
 		}
@@ -433,9 +490,6 @@ func GetAllConsumers(ctx context.Context,
 	for {
 		s, nextopt, err := client.Consumers.List(ctx, opt)
 		if err != nil {
-			return nil, err
-		}
-		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		if err := ctx.Err(); err != nil {
