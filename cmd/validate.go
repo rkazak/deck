@@ -6,6 +6,7 @@ import (
 	"github.com/kong/deck/dump"
 	"github.com/kong/deck/file"
 	"github.com/kong/deck/state"
+	"github.com/kong/deck/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -41,9 +42,13 @@ this command.
 			return err
 		}
 
+		wsClient, err := utils.GetKongClient(utils.KongClientConfig{})
+		if err != nil {
+			return err
+		}
 		rawState, err := file.Get(targetContent, file.RenderConfig{
 			CurrentState: dummyEmptyState,
-		}, dump.Config{})
+		}, dump.Config{}, wsClient)
 		if err != nil {
 			return err
 		}

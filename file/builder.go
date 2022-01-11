@@ -1,6 +1,7 @@
 package file
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/blang/semver/v4"
@@ -20,6 +21,9 @@ type stateBuilder struct {
 
 	selectTags   []string
 	intermediate *state.KongState
+
+	kcConfig utils.KongClientConfig
+	client   *kong.Client
 
 	err error
 }
@@ -196,6 +200,7 @@ func (b *stateBuilder) consumers() {
 			p.Consumer = &kong.Consumer{ID: kong.String(*c.ID)}
 			plugins = append(plugins, *p)
 		}
+		plugins = b.ingestPluginDefaults(plugins)
 		if err := b.ingestPlugins(plugins); err != nil {
 			b.err = err
 			return
@@ -569,6 +574,7 @@ func (b *stateBuilder) ingestService(s *FService) error {
 		p.Service = &kong.Service{ID: kong.String(*s.ID)}
 		plugins = append(plugins, *p)
 	}
+	plugins = b.ingestPluginDefaults(plugins)
 	if err := b.ingestPlugins(plugins); err != nil {
 		return err
 	}
@@ -735,6 +741,7 @@ func (b *stateBuilder) plugins() {
 		}
 		plugins = append(plugins, p)
 	}
+	plugins = b.ingestPluginDefaults(plugins)
 	if err := b.ingestPlugins(plugins); err != nil {
 		b.err = err
 		return
@@ -768,7 +775,33 @@ func (b *stateBuilder) ingestRoute(r FRoute) error {
 		p.Route = &kong.Route{ID: kong.String(*r.ID)}
 		plugins = append(plugins, *p)
 	}
+	plugins = b.ingestPluginDefaults(plugins)
 	return b.ingestPlugins(plugins)
+}
+
+func (b *stateBuilder) ingestPluginDefaults(plugins []FPlugin) []FPlugin {
+	pluginsWithDefault := []FPlugin{}
+	for _, p := range plugins {
+		p := p
+		schema, _ := b.client.Plugins.GetSchema(context.Background(), p.Name)
+		fields := schema["fields"].([]interface{})
+		for _, field := range fields {
+			for k, v := range field.(map[string]interface{}) {
+				if p.Config == nil {
+					p.Config = make(map[string]interface{})
+				}
+				if p.Config[k] == nil {
+					if defaultValue, ok := v.(map[string]interface{})["default"]; ok {
+						p.Config[k] = defaultValue
+					} else if fieldType := v.(map[string]interface{})["type"]; fieldType == "string" || fieldType == "number" {
+						p.Config[k] = nil
+					}
+				}
+			}
+		}
+		pluginsWithDefault = append(pluginsWithDefault, p)
+	}
+	return pluginsWithDefault
 }
 
 func (b *stateBuilder) ingestPlugins(plugins []FPlugin) error {
