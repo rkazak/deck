@@ -3,6 +3,7 @@ package file
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/blang/semver/v4"
 	"github.com/kong/deck/konnect"
@@ -779,23 +780,54 @@ func (b *stateBuilder) ingestRoute(r FRoute) error {
 	return b.ingestPlugins(plugins)
 }
 
+func ingestDefaultConfigFields(p *FPlugin, config interface{}) {
+	for _, field := range config.([]interface{}) {
+		for key, value := range field.(map[string]interface{}) {
+			if p.Config[key] != nil {
+				continue
+			}
+			if defaultValue, ok := value.(map[string]interface{})["default"]; ok {
+				p.Config[key] = defaultValue
+			} else if fieldType := value.(map[string]interface{})["type"]; fieldType == "string" || fieldType == "number" {
+				p.Config[key] = nil
+			}
+		}
+	}
+}
+
+func ingestDefaultProtocols(p *FPlugin, protocols interface{}) {
+	if defaultValue, ok := protocols.(map[string]interface{})["default"]; ok {
+		for _, protocol := range defaultValue.([]interface{}) {
+			if protocolStr, ok := protocol.(string); ok {
+				p.Protocols = append(p.Protocols, &protocolStr)
+			}
+		}
+	}
+}
+
 func (b *stateBuilder) ingestPluginDefaults(plugins []FPlugin) []FPlugin {
 	pluginsWithDefault := []FPlugin{}
 	for _, p := range plugins {
-		p := p
-		schema, _ := b.client.Plugins.GetSchema(context.Background(), p.Name)
+		endpoint := fmt.Sprintf("/default/schemas/plugins/%s", *p.Name)
+		req, _ := b.client.NewRequest(http.MethodGet, endpoint, nil, nil)
+		ctx := context.Background()
+		var schema map[string]interface{}
+		b.client.Do(ctx, req, &schema)
+
+		if p.Config == nil {
+			p.Config = make(map[string]interface{})
+		}
+
 		fields := schema["fields"].([]interface{})
 		for _, field := range fields {
-			for k, v := range field.(map[string]interface{}) {
-				if p.Config == nil {
-					p.Config = make(map[string]interface{})
+			if protocols, ok := field.(map[string]interface{})["protocols"]; ok {
+				if p.Protocols != nil {
+					continue
 				}
-				if p.Config[k] == nil {
-					if defaultValue, ok := v.(map[string]interface{})["default"]; ok {
-						p.Config[k] = defaultValue
-					} else if fieldType := v.(map[string]interface{})["type"]; fieldType == "string" || fieldType == "number" {
-						p.Config[k] = nil
-					}
+				ingestDefaultProtocols(&p, protocols)
+			} else if config, ok := field.(map[string]interface{})["config"]; ok {
+				if configFields, ok := config.(map[string]interface{})["fields"]; ok {
+					ingestDefaultConfigFields(&p, configFields)
 				}
 			}
 		}
