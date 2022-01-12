@@ -201,7 +201,11 @@ func (b *stateBuilder) consumers() {
 			p.Consumer = &kong.Consumer{ID: kong.String(*c.ID)}
 			plugins = append(plugins, *p)
 		}
-		plugins = b.ingestPluginDefaults(plugins)
+		plugins, err = b.ingestPluginDefaults(plugins)
+		if err != nil {
+			b.err = err
+			return
+		}
 		if err := b.ingestPlugins(plugins); err != nil {
 			b.err = err
 			return
@@ -575,7 +579,10 @@ func (b *stateBuilder) ingestService(s *FService) error {
 		p.Service = &kong.Service{ID: kong.String(*s.ID)}
 		plugins = append(plugins, *p)
 	}
-	plugins = b.ingestPluginDefaults(plugins)
+	plugins, err = b.ingestPluginDefaults(plugins)
+	if err != nil {
+		return err
+	}
 	if err := b.ingestPlugins(plugins); err != nil {
 		return err
 	}
@@ -742,7 +749,11 @@ func (b *stateBuilder) plugins() {
 		}
 		plugins = append(plugins, p)
 	}
-	plugins = b.ingestPluginDefaults(plugins)
+	plugins, err := b.ingestPluginDefaults(plugins)
+	if err != nil {
+		b.err = err
+		return
+	}
 	if err := b.ingestPlugins(plugins); err != nil {
 		b.err = err
 		return
@@ -776,7 +787,10 @@ func (b *stateBuilder) ingestRoute(r FRoute) error {
 		p.Route = &kong.Route{ID: kong.String(*r.ID)}
 		plugins = append(plugins, *p)
 	}
-	plugins = b.ingestPluginDefaults(plugins)
+	plugins, err = b.ingestPluginDefaults(plugins)
+	if err != nil {
+		return err
+	}
 	return b.ingestPlugins(plugins)
 }
 
@@ -805,20 +819,34 @@ func ingestDefaultProtocols(p *FPlugin, protocols interface{}) {
 	}
 }
 
-func (b *stateBuilder) ingestPluginDefaults(plugins []FPlugin) []FPlugin {
+func (b *stateBuilder) getDefaults(entity, entityID string) (map[string]interface{}, error) {
+	ctx := context.Background()
+	var schema map[string]interface{}
+	endpoint := fmt.Sprintf("/default/schemas/%s", entity)
+	if entityID != "" {
+		endpoint += fmt.Sprintf("/%s", entityID)
+	}
+	req, err := b.client.NewRequest(http.MethodGet, endpoint, nil, nil)
+	if err != nil {
+		return schema, err
+	}
+	b.client.Do(ctx, req, &schema)
+	return schema, nil
+}
+
+func (b *stateBuilder) ingestPluginDefaults(plugins []FPlugin) ([]FPlugin, error) {
 	pluginsWithDefault := []FPlugin{}
 	for _, p := range plugins {
-		endpoint := fmt.Sprintf("/default/schemas/plugins/%s", *p.Name)
-		req, _ := b.client.NewRequest(http.MethodGet, endpoint, nil, nil)
-		ctx := context.Background()
-		var schema map[string]interface{}
-		b.client.Do(ctx, req, &schema)
+		defaults, err := b.getDefaults("plugins", *p.Name)
+		if err != nil {
+			return pluginsWithDefault, err
+		}
 
 		if p.Config == nil {
 			p.Config = make(map[string]interface{})
 		}
 
-		fields := schema["fields"].([]interface{})
+		fields := defaults["fields"].([]interface{})
 		for _, field := range fields {
 			if protocols, ok := field.(map[string]interface{})["protocols"]; ok {
 				if p.Protocols != nil {
@@ -833,7 +861,7 @@ func (b *stateBuilder) ingestPluginDefaults(plugins []FPlugin) []FPlugin {
 		}
 		pluginsWithDefault = append(pluginsWithDefault, p)
 	}
-	return pluginsWithDefault
+	return pluginsWithDefault, nil
 }
 
 func (b *stateBuilder) ingestPlugins(plugins []FPlugin) error {
