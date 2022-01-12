@@ -61,7 +61,9 @@ func GetForKonnect(fileContent *Content, opt RenderConfig) (*utils.KongRawState,
 
 // Get process the fileContent and renders a RawState.
 // IDs of entities are matches based on currentState.
-func Get(fileContent *Content, opt RenderConfig, dumpConfig dump.Config, wsClient *kong.Client) (*utils.KongRawState, error) {
+func Get(fileContent *Content, opt RenderConfig, dumpConfig dump.Config, wsClient *kong.Client) (
+	*utils.KongRawState, error,
+) {
 	var builder stateBuilder
 	// setup
 	builder.targetContent = fileContent

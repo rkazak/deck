@@ -23,8 +23,7 @@ type stateBuilder struct {
 	selectTags   []string
 	intermediate *state.KongState
 
-	kcConfig utils.KongClientConfig
-	client   *kong.Client
+	client *kong.Client
 
 	err error
 }
@@ -830,13 +829,14 @@ func (b *stateBuilder) getDefaults(entity, entityID string) (map[string]interfac
 	if err != nil {
 		return schema, err
 	}
-	b.client.Do(ctx, req, &schema)
-	return schema, nil
+	_, err = b.client.Do(ctx, req, &schema)
+	return schema, err
 }
 
 func (b *stateBuilder) ingestPluginDefaults(plugins []FPlugin) ([]FPlugin, error) {
 	pluginsWithDefault := []FPlugin{}
 	for _, p := range plugins {
+		p := p
 		defaults, err := b.getDefaults("plugins", *p.Name)
 		if err != nil {
 			return pluginsWithDefault, err
