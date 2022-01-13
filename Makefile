@@ -9,11 +9,11 @@ test-all: lint start-test-env docker-test
 
 .PHONY: build-image
 build-image:
-	docker build -t ${NAME}:${TAG} -f Dockerfile.tests .
+	docker build -t ${NAME}:${TAG} -f tests/Dockerfile.tests .
 
 .PHONY: start-test-env
 start-test-env: build-image
-	./init.sh
+	./tests/init.sh
 
 .PHONY: docker-test
 docker-test:
