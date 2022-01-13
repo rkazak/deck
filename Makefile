@@ -1,8 +1,27 @@
+NAME = deck
+TAG  = latest
+
 .DEFAULT_GOAL := test-all
 
 CLI_DOCS_PATH=docs/cli-docs/
 .PHONY: test-all
-test-all: lint test
+test-all: lint start-test-env docker-test
+
+.PHONY: build-image
+build-image:
+	docker build -t ${NAME}:${TAG} -f Dockerfile.tests .
+
+.PHONY: start-test-env
+start-test-env: build-image
+	./init.sh
+
+.PHONY: docker-test
+docker-test:
+	docker exec deck_deck_1 make test
+
+.PHONY: docker-coverage
+docker-coverage:
+	docker exec deck_deck_1 make coverage
 
 .PHONY: test
 test:

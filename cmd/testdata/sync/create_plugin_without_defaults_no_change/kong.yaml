@@ -1,0 +1,82 @@
+_format_version: "1.1"
+services:
+- connect_timeout: 60000
+  host: mockbin.org
+  name: svc1
+  port: 80
+  protocol: http
+  read_timeout: 60000
+  retries: 5
+  routes:
+  - https_redirect_status_code: 301
+    name: r1
+    path_handling: v0
+    paths:
+    - /r1
+    preserve_host: false
+    protocols:
+    - http
+    - https
+    regex_priority: 0
+    request_buffering: true
+    response_buffering: true
+    strip_path: false
+  tags:
+  - team-svc1
+  write_timeout: 60000
+- connect_timeout: 60000
+  host: mockbin.org
+  name: svc2
+  port: 80
+  protocol: http
+  read_timeout: 60000
+  retries: 5
+  routes:
+  - https_redirect_status_code: 301
+    name: r2
+    path_handling: v0
+    paths:
+    - /r2
+    preserve_host: false
+    protocols:
+    - http
+    - https
+    regex_priority: 0
+    request_buffering: true
+    response_buffering: true
+    strip_path: false
+  write_timeout: 60000
+- connect_timeout: 60000
+  host: mockbin.org
+  name: svc3
+  port: 80
+  protocol: http
+  read_timeout: 60000
+  retries: 5
+  routes:
+  - https_redirect_status_code: 301
+    methods:
+    - GET
+    name: r3
+    path_handling: v0
+    paths:
+    - /r3
+    preserve_host: false
+    protocols:
+    - http
+    - https
+    regex_priority: 0
+    request_buffering: true
+    response_buffering: true
+    strip_path: false
+  write_timeout: 60000
+plugins:
+- config:
+    hour: 10
+  enabled: true
+  name: rate-limiting
+  protocols:
+  - grpc
+  - grpcs
+  - http
+  - https
