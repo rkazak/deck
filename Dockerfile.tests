@@ -1,7 +1,0 @@
-FROM golang:1.17.5-alpine3.15 AS build
-WORKDIR /go/src/github.com/Kong/deck
-ARG KONG_ADDRESS
-ENV KONG_ADDRESS=$KONG_ADDRESS
-RUN apk add make bash git gcc musl-dev
-ADD . /go/src/github.com/Kong/deck
-RUN make build && cp deck /usr/local/bin

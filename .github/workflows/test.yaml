@@ -20,8 +20,6 @@ jobs:
         run: make verify-codegen
       - name: Prepare docker test environment
         run: make start-test-env
-      - name: Check running containers
-        run: sleep 20; docker ps -a
       - name: Run tests with Coverage
         run: make docker-coverage
       - name: Upload Code Coverage
