@@ -801,7 +801,19 @@ func ingestDefaultConfigFields(p *FPlugin, config interface{}) {
 			}
 			if defaultValue, ok := value.(map[string]interface{})["default"]; ok {
 				p.Config[key] = defaultValue
-			} else if fieldType := value.(map[string]interface{})["type"]; fieldType == "string" || fieldType == "number" {
+			} else if fields, ok := value.(map[string]interface{})["fields"]; ok {
+				innerField := map[string]interface{}{}
+				for _, field := range fields.([]interface{}) {
+					for fieldKey, value := range field.(map[string]interface{}) {
+						if defaultValue, ok := value.(map[string]interface{})["default"]; ok {
+							innerField[fieldKey] = defaultValue
+						} else {
+							innerField[fieldKey] = nil
+						}
+					}
+				}
+				p.Config[key] = innerField
+			} else {
 				p.Config[key] = nil
 			}
 		}
@@ -821,7 +833,7 @@ func ingestDefaultProtocols(p *FPlugin, protocols interface{}) {
 func (b *stateBuilder) getDefaults(entity, entityID string) (map[string]interface{}, error) {
 	ctx := context.Background()
 	var schema map[string]interface{}
-	endpoint := fmt.Sprintf("/default/schemas/%s", entity)
+	endpoint := fmt.Sprintf("/schemas/%s", entity)
 	if entityID != "" {
 		endpoint += fmt.Sprintf("/%s", entityID)
 	}
